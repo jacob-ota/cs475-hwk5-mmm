@@ -10,6 +10,7 @@ extern double **firstMatrix;
 extern double **secondMatrix;
 extern double **seqMatrix;
 extern double **parMatrix;
+extern double **partialMatrix;
 
 int main(int argc, char *argv[])
 {
@@ -40,6 +41,7 @@ int main(int argc, char *argv[])
 				mmm_seq(size);
 				clockend = rtclock(); // stop clocking
 				printf("Sequential Time: %.6f sec\n", (clockend - clockstart));
+				mmm_freeup();
 			}
 			else {
 				printf("Entered size cannot be 0 or negative or a nonnumber!\n");
@@ -68,28 +70,42 @@ int main(int argc, char *argv[])
 					printf("thread count: %d\n", numThreads);
 					printf("size: %d\n", size);
 					printf("========\n");
-					// start: stuff I want to clock
-					// clockstart = rtclock(); // start clocking
-					// mmm_seq here to clock it
-					// clockend = rtclock(); // stop clocking
-					// double seqTime = clockend - clockstart;
-					// printf("Sequential Time: %.6f sec\n", seqTime);				
-					// end: stuff I want to clock
-
-					// start: stuff I want to clock
-					// clockstart = rtclock(); // start clocking
-					// mmm_par here to clock it
-					// clockend = rtclock(); // stop clocking
-					// double parTime = clockend - clockstart;
-					// printf("Parallel Time: %.6f sec\n", parTime);
-					// end: stuff I want to clock
+					mmm_init(size);
+					//clock the sequential time first
+					clockstart = rtclock(); // start clocking
+					mmm_seq(size);
+					clockend = rtclock(); // stop clocking
+					double seqTime = clockend - clockstart;
+					printf("Sequential Time: %.6f sec\n", seqTime);				
+					
+					// now clock the parallel time
+					double parClockStart, parClockStop;
+					parClockStart = rtclock(); // start clocking
+					pthread_t threads[numThreads];
+					thread_args args[numThreads];
+					for(int i = 0; i < numThreads; i++) {
+						//fill in the args parameters
+						args[i].tid = i;
+						args[i].beginRow = i * size / numThreads;
+						args[i].finishRow = (i + 1) * size/numThreads - 1;
+						args[i].matrixSize = size;
+						//create a thread to run
+						pthread_create(&threads[i], NULL, mmm_par, &args[i]);
+					}
+					for(int i = 0; i < numThreads; i++) {
+						pthread_join(threads[i], NULL);						
+					}
+					parClockStop = rtclock(); // stop clocking
+					double parTime = parClockStop - parClockStart;
+					printf("Parallel Time: %.6f sec\n", parTime);
 
 					//do the speedup
-					// double speedup = seqTime / parTime;
-					// printf("Speedup: %.6f\n", speedup);
+					double speedup = seqTime / parTime;
+					printf("Speedup: %.6f\n", speedup);
 
 					//verification
-					// printf("Verifying... largest error between parallel and sequential matrix:  %.6f\n", mmm_verify());
+					printf("Verifying... largest error between parallel and sequential matrix:  %.6f\n", mmm_verify(size));
+					mmm_freeup();
 				}
 				else {
 					printf("Entered size cannot be 0 or negative or a nonnumber!\n");
